@@ -3,182 +3,142 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const path = require('path');
 const os = require('os');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://empiretechapp:bullishbb3@empiretechapi.19vipus.mongodb.net/?retryWrites=true&w=majority&appName=empiretechapi', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => {
-  console.log('✅ Connected to MongoDB');
-}).catch(err => {
-  console.error('❌ MongoDB connection error:', err);
-});
+// Increase EventEmitter listener limit
+require('events').EventEmitter.defaultMaxListeners = 1000;
 
-// Click model
+// MongoDB Connection
+mongoose.connect(
+  process.env.MONGODB_URI || 'mongodb+srv://empiretechapp:bullishbb3@empiretechapi.19vipus.mongodb.net/?retryWrites=true&w=majority&appName=empiretechapi',
+  { useNewUrlParser: true, useUnifiedTopology: true }
+)
+.then(() => console.log('✅ Connected to MongoDB'))
+.catch(err => console.error('❌ MongoDB connection error:', err));
+
+// Click Schema and Model
 const clickSchema = new mongoose.Schema({
   ip: String,
   route: String,
   value: Number,
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
+  createdAt: { type: Date, default: Date.now },
 });
 
 const Click = mongoose.model('Click', clickSchema);
-
-// Utility to get client IP address
-const getIP = (req) => {
-  const forwarded = req.headers['x-forwarded-for'];
-  return forwarded ? forwarded.split(',')[0] : req.connection.remoteAddress;
-};
 
 // Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Serve static HTML pages
+// Utility to Get Client IP
+const getIP = (req) => {
+  const forwarded = req.headers['x-forwarded-for'];
+  return forwarded ? forwarded.split(',')[0] : req.socket.remoteAddress;
+};
+
+// Routes
+
+// Serve Static HTML
 app.get('/qr-page', (req, res) => {
   res.sendFile(path.join(__dirname, 'qr.html'));
 });
 
-app.get('/pair', async (req, res) => {
-  try {
-    const ip = getIP(req);
-    await Click.create({
-      ip: ip,
-      route: '/pair',
-      value: 1,
-    });
-    console.log(`✅ Pair click recorded from IP: ${ip}`);
-  } catch (err) {
-    console.error('❌ Error saving /pair click:', err);
-  }
-  res.sendFile(path.join(__dirname, 'pair.html'));
-});
+// Click Logging Pages
+const logClickAndServe = (routePath, fileName) => {
+  app.get(routePath, async (req, res) => {
+    try {
+      const ip = getIP(req);
+      await Click.create({ ip, route: routePath, value: 1 });
+      console.log(`✅ ${routePath} click recorded from IP: ${ip}`);
+    } catch (err) {
+      console.error(`❌ Error saving ${routePath} click:`, err);
+    }
+    res.sendFile(path.join(__dirname, fileName));
+  });
+};
 
-app.get('/qr', async (req, res) => {
-  try {
-    const ip = getIP(req);
-    await Click.create({
-      ip: ip,
-      route: '/qr',
-      value: 1,
-    });
-    console.log(`✅ QR click recorded from IP: ${ip}`);
-  } catch (err) {
-    console.error('❌ Error saving /qr click:', err);
-  }
-  res.sendFile(path.join(__dirname, 'qr.html'));
-});
+logClickAndServe('/pair', 'pair.html');
+logClickAndServe('/qr', 'qr.html');
 
-// Click summary endpoint with improved counting
+// Click Summary (last 24h)
 app.get('/clicks', async (req, res) => {
   try {
-    // Get counts for last 24 hours
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
     const [total, pair, qr, lastPair, lastQr] = await Promise.all([
-      Click.countDocuments({ createdAt: { $gte: oneDayAgo } }),
-      Click.countDocuments({ route: '/pair', createdAt: { $gte: oneDayAgo } }),
-      Click.countDocuments({ route: '/qr', createdAt: { $gte: oneDayAgo } }),
+      Click.countDocuments({ createdAt: { $gte: since } }),
+      Click.countDocuments({ route: '/pair', createdAt: { $gte: since } }),
+      Click.countDocuments({ route: '/qr', createdAt: { $gte: since } }),
       Click.findOne({ route: '/pair' }).sort({ createdAt: -1 }),
-      Click.findOne({ route: '/qr' }).sort({ createdAt: -1 })
+      Click.findOne({ route: '/qr' }).sort({ createdAt: -1 }),
     ]);
 
     res.json({
       totalClicks: total,
       pairClicks: pair,
       qrClicks: qr,
-      lastPairTime: lastPair ? lastPair.createdAt : null,
-      lastQrTime: lastQr ? lastQr.createdAt : null
+      lastPairTime: lastPair?.createdAt || null,
+      lastQrTime: lastQr?.createdAt || null,
     });
   } catch (err) {
-    console.error('Error fetching click stats:', err);
+    console.error('❌ Error fetching click stats:', err);
     res.status(500).json({ message: 'Failed to fetch click stats' });
   }
 });
 
-// Analytics endpoint
+// Analytics Endpoint
 app.get('/api/analytics', async (req, res) => {
   try {
     const range = req.query.range || '24h';
+    const now = Date.now();
     let startDate;
-    
-    switch(range) {
+
+    switch (range) {
       case '7d':
-        startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        startDate = new Date(now - 7 * 24 * 60 * 60 * 1000);
         break;
       case '30d':
-        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        startDate = new Date(now - 30 * 24 * 60 * 60 * 1000);
         break;
-      default: // 24h
-        startDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      default:
+        startDate = new Date(now - 24 * 60 * 60 * 1000);
     }
-    
-    // Group data by hour/day depending on range
-    const groupBy = range === '24h' ? 'hour' : 'day';
-    
-    const result = await Click.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: startDate }
-        }
-      },
+
+    const format = range === '24h' ? "%Y-%m-%dT%H:00:00" : "%Y-%m-%d";
+
+    const data = await Click.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
       {
         $project: {
-          [groupBy]: {
-            [$cond: {
-              if: { $eq: [range, '24h'] },
-              then: { $hour: "$createdAt" },
-              else: { $dayOfMonth: "$createdAt" }
-            }]: 1
-          },
           route: 1,
-          date: {
-            [$cond: {
-              if: { $eq: [range, '24h'] },
-              then: { $dateToString: { format: "%Y-%m-%dT%H:00:00", date: "$createdAt" } },
-              else: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }
-            }]
-          }
+          date: { $dateToString: { format, date: "$createdAt" } },
         }
       },
       {
         $group: {
           _id: "$date",
           time: { $first: "$date" },
-          qrCount: {
-            $sum: {
-              $cond: [{ $eq: ["$route", "/qr"] }, 1, 0]
-            }
-          },
-          pairCount: {
-            $sum: {
-              $cond: [{ $eq: ["$route", "/pair"] }, 1, 0]
-            }
-          }
+          qrCount: { $sum: { $cond: [{ $eq: ["$route", "/qr"] }, 1, 0] } },
+          pairCount: { $sum: { $cond: [{ $eq: ["$route", "/pair"] }, 1, 0] } },
         }
       },
-      {
-        $sort: { time: 1 }
-      }
+      { $sort: { time: 1 } }
     ]);
-    
-    res.json(result);
+
+    res.json(data);
   } catch (err) {
-    console.error('Error fetching analytics:', err);
+    console.error('❌ Error fetching analytics:', err);
     res.status(500).json({ message: 'Failed to fetch analytics' });
   }
 });
 
-// Endpoint to get local IP
+// Get Local IP Address
 app.get('/api/local-ip', (req, res) => {
   const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
+  for (const name in interfaces) {
     for (const iface of interfaces[name]) {
       if (iface.family === 'IPv4' && !iface.internal) {
         return res.json({ ip: iface.address });
@@ -188,15 +148,14 @@ app.get('/api/local-ip', (req, res) => {
   res.json({ ip: '127.0.0.1' });
 });
 
-// Import external modules
-let server = require('./qr');
-let code = require('./pair');
-require('events').EventEmitter.defaultMaxListeners = 1000;
+// External Routes
+const qrRouter = require('./qr');
+const pairRouter = require('./pair');
 
-app.use('/qr', server);
-app.use('/code', code);
+app.use('/qr', qrRouter);
+app.use('/code', pairRouter);
 
-// Start server
+// Start Server
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
