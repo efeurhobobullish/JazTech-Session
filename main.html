@@ -356,7 +356,7 @@
             return new Date(item.time).toLocaleDateString();
           });
           
-          const qrData = data.map(item => item.qrCount);
+          const qrData = data.map(item => item.qrPageCount);
           const pairData = data.map(item => item.pairCount);
           
           initAnalyticsChart(labels, qrData, pairData);
