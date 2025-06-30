@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JazeTech Session Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .sidebar {
+      transform: translateX(-100%);
+      transition: transform 0.3s ease-in-out;
+    }
+    .sidebar-open .sidebar {
+      transform: translateX(0);
+    }
+    .sidebar-overlay {
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease-in-out;
+    }
+    .sidebar-open .sidebar-overlay {
+      opacity: 1;
+      visibility: visible;
+    }
+    .connection-status {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .status-connected {
+      background-color: #10B981;
+    }
+    .status-disconnected {
+      background-color: #EF4444;
+    }
+    .status-pending {
+      background-color: #F59E0B;
+    }
+    .animate-pulse {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- Mobile Sidebar Overlay -->
+  <div class="sidebar-overlay fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"></div>
+
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar fixed inset-y-0 left-0 w-64 bg-white shadow-lg z-40">
+    <div class="p-4 border-b border-gray-200">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
+          <i class="fas fa-robot"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-blue-600">JazeTech</h1>
+          <p class="text-xs text-gray-500">Active Session</p>
+        </div>
+      </div>
+    </div>
+    <nav class="p-4">
+      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Connection Methods</p>
+      <ul class="space-y-2">
+        <li>
+          <a href="/qr-page" class="flex items-center space-x-3 p-2 rounded-lg text-gray-700 hover:bg-gray-100">
+            <i class="fas fa-qrcode w-5"></i>
+            <span>QR Code</span>
+          </a>
+        </li>
+        <li>
+          <a href="/pair" class="flex items-center space-x-3 p-2 rounded-lg text-gray-700 hover:bg-gray-100">
+            <i class="fas fa-link w-5"></i>
+            <span>Pairing Code</span>
+          </a>
+        </li>
+      </ul>
+      
+      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-6 mb-4">Menu</p>
+      <ul class="space-y-2">
+        <li>
+          <a href="#" class="flex items-center space-x-3 p-2 rounded-lg text-gray-700 hover:bg-gray-100">
+            <i class="fas fa-cog w-5"></i>
+            <span>Settings</span>
+          </a>
+        </li>
+        <li>
+          <a href="#" class="flex items-center space-x-3 p-2 rounded-lg text-gray-700 hover:bg-gray-100">
+            <i class="fas fa-chart-line w-5"></i>
+            <span>Analytics</span>
+          </a>
+        </li>
+      </ul>
+      
+      <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+            <img src="https://ui-avatars.com/api/?name=JazeTech&background=2563EA&color=fff" alt="Profile" class="w-full h-full object-cover">
+          </div>
+          <div>
+            <p class="font-medium text-sm">JazeTech</p>
+            <p class="text-xs text-gray-500">Admin</p>
+          </div>
+        </div>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="ml-0 transition-all duration-300 lg:ml-64">
+    <header class="bg-white shadow-sm">
+      <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+        <div class="flex items-center space-x-4">
+          <button id="menu-toggle" class="text-gray-600 hover:text-blue-600 lg:hidden">
+            <i class="fas fa-bars text-xl"></i>
+          </button>
+          <h1 class="text-xl font-bold text-blue-600">Dashboard</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+          <span class="text-sm font-medium text-gray-600" id="current-time">Loading...</span>
+          <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+            <img src="https://ui-avatars.com/api/?name=JazeTech&background=2563EA&color=fff" alt="Profile" class="w-full h-full object-cover">
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+      <!-- Connection Overview -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <!-- Connection Status -->
+        <div class="bg-white rounded-lg shadow p-6 border border-gray-100">
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h3 class="text-lg font-semibold text-gray-800">Connection Status</h3>
+              <p class="text-sm text-gray-500">WhatsApp Session</p>
+            </div>
+            <span id="connection-status-badge" class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+              <span class="connection-status status-disconnected"></span>
+              Disconnected
+            </span>
+          </div>
+          <div class="space-y-3">
+            <div>
+              <p class="text-sm text-gray-500">Session ID</p>
+              <p class="text-sm font-mono text-blue-600 truncate" id="session-id">Loading...</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">Session Duration</p>
+              <p class="text-xl font-semibold text-blue-600" id="session-duration">00:00:00</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- QR Code Stats -->
+        <div class="bg-white rounded-lg shadow p-6 border border-gray-100">
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h3 class="text-lg font-semibold text-gray-800">QR Code Scans</h3>
+              <p class="text-sm text-gray-500">Last 24 hours</p>
+            </div>
+            <i class="fas fa-qrcode text-blue-600"></i>
+          </div>
+          <div class="space-y-3">
+            <div>
+              <p class="text-xl font-semibold text-blue-600" id="qr-scans-count">0</p>
+              <p class="text-sm text-gray-500">Unique devices scanned</p>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-500">Last Scan</span>
+              <span class="text-sm font-medium" id="last-qr-scan">Never</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pairing Stats -->
+        <div class="bg-white rounded-lg shadow p-6 border border-gray-100">
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h3 class="text-lg font-semibold text-gray-800">Pairing Attempts</h3>
+              <p class="text-sm text-gray-500">Last 24 hours</p>
+            </div>
+            <i class="fas fa-link text-blue-600"></i>
+          </div>
+          <div class="space-y-3">
+            <div>
+              <p class="text-xl font-semibold text-blue-600" id="pair-attempts-count">0</p>
+              <p class="text-sm text-gray-500">Successful connections</p>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-500">Last Attempt</span>
+              <span class="text-sm font-medium" id="last-pair-attempt">Never</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- System Info -->
+        <div class="bg-white rounded-lg shadow p-6 border border-gray-100">
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h3 class="text-lg font-semibold text-gray-800">System Info</h3>
+              <p class="text-sm text-gray-500">Server Status</p>
+            </div>
+            <i class="fas fa-server text-blue-600"></i>
+          </div>
+          <div class="space-y-3">
+            <div>
+              <p class="text-sm text-gray-500">IP Address</p>
+              <p class="text-sm font-mono text-blue-600" id="ip-address">Loading...</p>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-500">Uptime</span>
+              <span class="text-sm font-medium" id="server-uptime">00:00:00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Connection Analytics -->
+      <div class="bg-white rounded-lg shadow p-6 border border-gray-100 mb-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-800">Connection Analytics</h3>
+          <div class="flex space-x-2">
+            <button id="time-24h" class="px-3 py-1 text-xs bg-blue-600 text-white rounded">24h</button>
+            <button id="time-7d" class="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300">7d</button>
+            <button id="time-30d" class="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300">30d</button>
+          </div>
+        </div>
+        <div class="h-64 flex items-center justify-center" id="analytics-chart">
+          <div class="text-center">
+            <i class="fas fa-chart-bar text-4xl text-gray-300 mb-2"></i>
+            <p class="text-gray-500">Connection data will appear here</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="bg-white rounded-lg shadow p-6 border border-gray-100">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-800">Recent Activity</h3>
+          <div class="flex space-x-2">
+            <button id="show-all" class="px-3 py-1 text-xs bg-blue-600 text-white rounded">All</button>
+            <button id="show-qr" class="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300">QR Scans</button>
+            <button id="show-pair" class="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Pair Attempts</button>
+          </div>
+        </div>
+        <div class="space-y-4" id="activity-log">
+          <div class="flex items-start space-x-4">
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mt-1">
+              <i class="fas fa-info-circle"></i>
+            </div>
+            <div>
+              <p class="font-medium">No activity yet</p>
+              <p class="text-sm text-gray-500">Connection attempts will appear here</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- WebSocket Connection Indicator -->
+  <div class="fixed bottom-4 left-4 flex items-center">
+    <span id="ws-status" class="w-3 h-3 rounded-full bg-gray-400 mr-2"></span>
+    <span class="text-xs text-gray-600">Connecting...</span>
+  </div>
+
+  <script>
+    // Current session data
+    let currentSession = {
+      id: '',
+      startTime: new Date(),
+      ws: null,
+      analyticsTimeRange: '24h'
+    };
+
+    // Initialize the dashboard
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Initialize session
+      await initializeSession();
+      
+      // Setup WebSocket connection
+      setupWebSocket();
+      
+      // Start timers
+      startSessionTimer();
+      startServerUptimeTimer();
+      
+      // Load initial data
+      updateConnectionStats();
+      
+      // Setup event listeners
+      setupEventListeners();
+      
+      // Get IP address
+      fetchIPAddress();
+    });
+
+    // Initialize a new session
+    async function initializeSession() {
+      try {
+        const response = await fetch('/api/sessions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const session = await response.json();
+        currentSession.id = session.sessionId;
+        
+        document.getElementById('session-id').textContent = currentSession.id;
+        
+      } catch (err) {
+        console.error('Error initializing session:', err);
+      }
+    }
+
+    // Setup WebSocket connection for real-time updates
+    function setupWebSocket() {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+      currentSession.ws = new WebSocket(`${wsProtocol}${window.location.host}/${currentSession.id}`);
+      
+      currentSession.ws.onopen = () => {
+        console.log('WebSocket connected');
+        document.getElementById('ws-status').classList.remove('bg-gray-400', 'bg-red-500');
+        document.getElementById('ws-status').classList.add('bg-green-500');
+        document.querySelector('#ws-status + span').textContent = 'Connected';
+      };
+      
+      currentSession.ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log('WebSocket message:', data);
+        
+        if (data.type === 'STATS_UPDATE') {
+          updateConnectionStats(data.stats);
+        } else if (data.type === 'STATUS_UPDATE') {
+          updateConnectionStatus(data.status);
+        } else if (data.type === 'ACTIVITY_UPDATE') {
+          addActivityItem(data.activity);
+        }
+      };
+      
+      currentSession.ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        document.getElementById('ws-status').classList.remove('bg-green-500');
+        document.getElementById('ws-status').classList.add('bg-red-500');
+        document.querySelector('#ws-status + span').textContent = 'Disconnected - Reconnecting...';
+        
+        // Try to reconnect after 5 seconds
+        setTimeout(setupWebSocket, 5000);
+      };
+      
+      currentSession.ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+    }
+
+    // Update connection statistics
+    async function updateConnectionStats(stats = null) {
+      try {
+        if (!stats) {
+          const response = await fetch(`/api/sessions/${currentSession.id}/stats?range=${currentSession.analyticsTimeRange}`);
+          stats = await response.json();
+        }
+        
+        // Update connection status
+        updateConnectionStatus(stats.connectionStatus);
+        
+        // Update QR stats
+        document.getElementById('qr-scans-count').textContent = stats.qrScans;
+        document.getElementById('last-qr-scan').textContent = 
+          stats.lastQrScan ? formatTime(stats.lastQrScan) : 'Never';
+        
+        // Update pair stats
+        document.getElementById('pair-attempts-count').textContent = stats.pairAttempts;
+        document.getElementById('last-pair-attempt').textContent = 
+          stats.lastPairAttempt ? formatTime(stats.lastPairAttempt) : 'Never';
+        
+        // Update analytics chart
+        updateAnalyticsChart(stats.analyticsData);
+        
+      } catch (err) {
+        console.error('Error updating connection stats:', err);
+      }
+    }
+
+    // Format time for display
+    function formatTime(timestamp) {
+      const now = new Date();
+      const date = new Date(timestamp);
+      const diffHours = Math.floor((now - date) / (1000 * 60 * 60));
+      
+      if (diffHours < 24) {
+        return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      } else {
+        return date.toLocaleDateString([], {month: 'short', day: 'numeric'});
+      }
+    }
+
+    // Update connection status display
+    function updateConnectionStatus(status) {
+      const badge = document.getElementById('connection-status-badge');
+      const statusDot = badge.querySelector('.connection-status');
+      
+      // Remove all status classes
+      badge.classList.remove('bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800', 'bg-yellow-100', 'text-yellow-800');
+      statusDot.classList.remove('status-connected', 'status-disconnected', 'status-pending');
+      
+      switch (status) {
+        case 'connected':
+          badge.classList.add('bg-green-100', 'text-green-800');
+          statusDot.classList.add('status-connected');
+          badge.innerHTML = '<span class="connection-status status-connected"></span> Connected';
+          break;
+        case 'disconnected':
+          badge.classList.add('bg-red-100', 'text-red-800');
+          statusDot.classList.add('status-disconnected');
+          badge.innerHTML = '<span class="connection-status status-disconnected"></span> Disconnected';
+          break;
+        case 'pending':
+          badge.classList.add('bg-yellow-100', 'text-yellow-800');
+          statusDot.classList.add('status-pending');
+          badge.innerHTML = '<span class="connection-status status-pending"></span> Pending';
+          break;
+        default:
+          badge.classList.add('bg-gray-100', 'text-gray-800');
+          statusDot.classList.add('status-disconnected');
+          badge.innerHTML = '<span class="connection-status status-disconnected"></span> Unknown';
+      }
+    }
+
+    // Update analytics chart (simplified - in a real app you'd use a charting library)
+    function updateAnalyticsChart(data) {
+      const container = document.getElementById('analytics-chart');
+      
+      if (!data || data.length === 0) {
+        container.innerHTML = `
+          <div class="text-center">
+            <i class="fas fa-chart-bar text-4xl text-gray-300 mb-2"></i>
+            <p class="text-gray-500">No analytics data available</p>
+          </div>
+        `;
+        return;
+      }
+      
+      // In a real implementation, you would render a chart here using Chart.js, D3.js, etc.
+      // This is a simplified placeholder
+      container.innerHTML = `
+        <div class="w-full h-full flex items-end justify-between pt-4">
+          ${data.map(item => `
+            <div class="flex-1 flex flex-col items-center mx-1">
+              <div 
+                class="w-full bg-blue-500 rounded-t-sm hover:bg-blue-600 transition-all" 
+                style="height: ${Math.min(100, item.value * 2)}px"
+                title="${item.label}: ${item.value}"
+              ></div>
+              <span class="text-xs text-gray-500 mt-1">${item.label}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    // Add new activity item to the log
+    function addActivityItem(activity) {
+      const container = document.getElementById('activity-log');
+      
+      // Remove the "no activity" message if it exists
+      if (container.children.length === 1 && 
+          container.children[0].querySelector('.fa-info-circle')) {
+        container.innerHTML = '';
+      }
+      
+      const activityEl = document.createElement('div');
+      activityEl.className = 'flex items-start space-x-4 activity-item';
+      activityEl.dataset.type = activity.type;
+      
+      const icon = activity.type === 'qr' ? 'fa-qrcode' : 'fa-link';
+      const typeText = activity.type === 'qr' ? 'QR Scan' : 'Pair Attempt';
+      const time = formatTime(activity.timestamp);
+      
+      activityEl.innerHTML = `
+        <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mt-1">
+          <i class="fas ${icon}"></i>
+        </div>
+        <div>
+          <p class="font-medium">${typeText} from ${activity.ipAddress}</p>
+          <p class="text-sm text-gray-500">${time} • ${activity.device || activity.userAgent?.split(' ')[0] || 'Unknown device'}</p>
+        </div>
+      `;
+      
+      // Prepend new activity (most recent first)
+      container.insertBefore(activityEl, container.firstChild);
+      
+      // Limit to 10 items
+      if (container.children.length > 10) {
+        container.removeChild(container.lastChild);
+      }
+    }
+
+    // Start session timer
+    function startSessionTimer() {
+      function updateTimer() {
+        const now = new Date();
+        const diff = now - currentSession.startTime;
+        
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        document.getElementById('session-duration').textContent = 
+          `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }
+      
+      updateTimer();
+      setInterval(updateTimer, 1000);
+    }
+
+    // Start server uptime timer (simulated)
+    function startServerUptimeTimer() {
+      let seconds = 0;
+      
+      function updateUptime() {
+        seconds++;
+        const hours = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        
+        document.getElementById('server-uptime').textContent = 
+          `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+      
+      updateUptime();
+      setInterval(updateUptime, 1000);
+    }
+
+    // Get IP address
+    function fetchIPAddress() {
+      fetch('https://api.ipify.org?format=json')
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById('ip-address').textContent = data.ip;
+        })
+        .catch(() => {
+          document.getElementById('ip-address').textContent = 'Unknown';
+        });
+    }
+
+    // Update current time
+    function updateCurrentTime() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      document.getElementById('current-time').textContent = timeStr;
+    }
+
+    // Setup event listeners
+    function setupEventListeners() {
+      // Toggle sidebar
+      document.getElementById('menu-toggle').addEventListener('click', () => {
+        document.body.classList.toggle('sidebar-open');
+      });
+
+      // Close sidebar when clicking overlay
+      document.querySelector('.sidebar-overlay').addEventListener('click', () => {
+        document.body.classList.remove('sidebar-open');
+      });
+
+      // Activity filter buttons
+      document.getElementById('show-all').addEventListener('click', () => {
+        document.querySelectorAll('.activity-item').forEach(item => {
+          item.style.display = 'flex';
+        });
+        updateButtonStates('all');
+      });
+
+      document.getElementById('show-qr').addEventListener('click', () => {
+        document.querySelectorAll('.activity-item').forEach(item => {
+          item.style.display = item.dataset.type === 'qr' ? 'flex' : 'none';
+        });
+        updateButtonStates('qr');
+      });
+
+      document.getElementById('show-pair').addEventListener('click', () => {
+        document.querySelectorAll('.activity-item').forEach(item => {
+          item.style.display = item.dataset.type === 'pair' ? 'flex' : 'none';
+        });
+        updateButtonStates('pair');
+      });
+
+      // Time range buttons
+      document.getElementById('time-24h').addEventListener('click', () => {
+        currentSession.analyticsTimeRange = '24h';
+        updateConnectionStats();
+        updateTimeRangeButtons('24h');
+      });
+
+      document.getElementById('time-7d').addEventListener('click', () => {
+        currentSession.analyticsTimeRange = '7d';
+        updateConnectionStats();
+        updateTimeRangeButtons('7d');
+      });
+
+      document.getElementById('time-30d').addEventListener('click', () => {
+        currentSession.analyticsTimeRange = '30d';
+        updateConnectionStats();
+        updateTimeRangeButtons('30d');
+      });
+
+      // Update time every minute
+      updateCurrentTime();
+      setInterval(updateCurrentTime, 60000);
+    }
+
+    // Update filter button states
+    function updateButtonStates(activeFilter) {
+      const buttons = ['all', 'qr', 'pair'];
+      
+      buttons.forEach(filter => {
+        const button = document.getElementById(`show-${filter}`);
+        if (filter === activeFilter) {
+          button.classList.remove('bg-gray-200', 'text-gray-700');
+          button.classList.add('bg-blue-600', 'text-white');
+        } else {
+          button.classList.remove('bg-blue-600', 'text-white');
+          button.classList.add('bg-gray-200', 'text-gray-700');
+        }
+      });
+    }
+
+    // Update time range buttons
+    function updateTimeRangeButtons(activeRange) {
+      const ranges = ['24h', '7d', '30d'];
+      
+      ranges.forEach(range => {
+        const button = document.getElementById(`time-${range}`);
+        if (range === activeRange) {
+          button.classList.remove('bg-gray-200', 'text-gray-700');
+          button.classList.add('bg-blue-600', 'text-white');
+        } else {
+          button.classList.remove('bg-blue-600', 'text-white');
+          button.classList.add('bg-gray-200', 'text-gray-700');
+        }
+      });
+    }
+  </script>
+</body>
+</html>
