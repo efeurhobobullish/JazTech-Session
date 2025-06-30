@@ -86,7 +86,7 @@
       </div>
 
       <!-- Refresh button -->
-      <button onclick="refreshQRCode()"
+      <button onclick="window.location.reload()"
               class="w-full py-2.5 px-4 bg-primary-50 hover:bg-primary-100 text-primary-600 font-medium rounded-lg transition-all duration-200 border border-primary-200 hover:border-primary-300 flex items-center justify-center gap-2">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -101,60 +101,12 @@
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.0.0-alpha.1/axios.min.js"></script>
   <script>
-    const sessionId = new URLSearchParams(window.location.search).get('session') || generateSessionId();
     var timeleft = 30;
     var progressBar = document.getElementById("progressBar");
     var qrImage = document.getElementById("qr-image");
     var legendText = document.getElementById("legend");
     var timeValue = document.getElementById("timeValue");
-
-    // Track the QR page view
-    trackQRView();
-
-    async function trackQRView() {
-      try {
-        await axios.post('/api/track-qr-view', {
-          sessionId,
-          ip: await getClientIP(),
-          userAgent: navigator.userAgent
-        });
-      } catch (error) {
-        console.error('Error tracking QR view:', error);
-      }
-    }
-
-    async function getClientIP() {
-      try {
-        const response = await axios.get('https://api.ipify.org?format=json');
-        return response.data.ip;
-      } catch (error) {
-        return 'unknown';
-      }
-    }
-
-    function generateSessionId() {
-      return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    }
-
-    function refreshQRCode() {
-      // Track QR refresh
-      axios.post('/api/track-qr-refresh', {
-        sessionId,
-        ip: await getClientIP()
-      }).catch(console.error);
-      
-      window.location.href = `/qr?session=${sessionId}&refresh=${Date.now()}`;
-    }
-
-    // Track when the QR code is displayed
-    qrImage.onload = function() {
-      axios.post('/api/track-qr-display', {
-        sessionId,
-        ip: await getClientIP()
-      }).catch(console.error);
-    };
 
     var downloadTimer = setInterval(function() {
       if (timeleft <= 0) {
@@ -162,12 +114,6 @@
         progressBar.style.display = 'none';
         timeValue.parentElement.textContent = "QR expired";
         legendText.innerHTML = "<span class='text-red-500'>Expired!</span> Please refresh";
-        
-        // Track QR expiration
-        axios.post('/api/track-qr-expired', {
-          sessionId,
-          ip: await getClientIP()
-        }).catch(console.error);
       } else {
         progressBar.value = 30 - timeleft;
         timeValue.textContent = timeleft;
