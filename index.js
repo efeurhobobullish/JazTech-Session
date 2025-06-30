@@ -10,7 +10,7 @@ const path = require('path');
 const app = express();
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/jazetech', {
+mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://empiretechapp:bullishbb3@empiretechapi.19vipus.mongodb.net/?retryWrites=true&w=majority&appName=empiretechapi', {
   useNewUrlParser: true,
   useUnifiedTopology: true
 });
