@@ -243,22 +243,8 @@
       </div>
     </div>
     <nav class="p-4">
-      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Connection Methods</p>
-      <ul class="space-y-2">
-        <li>
-          <a href="/qr" class="nav-item flex items-center space-x-3 p-2 rounded-lg text-gray-700">
-            <i class="fas fa-qrcode w-5 float-icon"></i>
-            <span>QR Code</span>
-          </a>
-        </li>
-        <li>
-          <a href="/pair" class="nav-item flex items-center space-x-3 p-2 rounded-lg text-gray-700">
-            <i class="fas fa-link w-5 float-icon"></i>
-            <span>Pairing Code</span>
-          </a>
-        </li>
-      </ul>
-
+      
+    
       <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-6 mb-4">Navigation</p>
       <ul class="space-y-2">
         <li>
@@ -477,6 +463,7 @@
     // Chart variables
     let analyticsChart;
     let currentTimeRange = '24h';
+    let sessionStartTime = new Date(); // Track when the session started
 
     document.addEventListener("DOMContentLoaded", function () {
       // Hamburger menu toggle
@@ -503,6 +490,21 @@
       }
       setInterval(updateTime, 1000);
       updateTime();
+
+      // Update session duration counter
+      function updateSessionDuration() {
+        const now = new Date();
+        const diff = Math.floor((now - sessionStartTime) / 1000); // in seconds
+        
+        const hours = Math.floor(diff / 3600);
+        const minutes = Math.floor((diff % 3600) / 60);
+        const seconds = diff % 60;
+        
+        const durationStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        document.getElementById('session-duration').textContent = durationStr;
+      }
+      setInterval(updateSessionDuration, 1000);
+      updateSessionDuration();
 
       // Animate numbers on update
       function animateValue(element, start, end, duration) {
@@ -679,10 +681,18 @@
           const ipData = await ipResponse.json();
           document.getElementById('ip-address').textContent = ipData.ip;
 
-          // Get uptime
+          // Get uptime from your API
           const uptimeResponse = await fetch('/api/uptime');
           const uptimeData = await uptimeResponse.json();
-          document.getElementById('server-uptime').textContent = formatUptime(uptimeData.uptime);
+          
+          // Format uptime from seconds to HH:MM:SS
+          const seconds = uptimeData.uptime;
+          const hours = Math.floor(seconds / 3600);
+          const minutes = Math.floor((seconds % 3600) / 60);
+          const secs = seconds % 60;
+          const uptimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+          
+          document.getElementById('server-uptime').textContent = uptimeStr;
 
         } catch (error) {
           console.error('Error fetching server info:', error);
@@ -697,14 +707,6 @@
           }
           document.getElementById('server-uptime').textContent = '00:00:00';
         }
-      }
-
-      // Format uptime seconds to HH:MM:SS
-      function formatUptime(seconds) {
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
       }
 
       // Time range button handlers
@@ -723,5 +725,5 @@
       setInterval(fetchServerIP, 60000); // Update uptime every minute
     });
   </script>
-  </body>
+</body>
 </html>
