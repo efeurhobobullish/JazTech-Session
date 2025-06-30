@@ -3,7 +3,14 @@ const fs = require('fs-extra');
 const { exec } = require("child_process");
 const pino = require("pino");
 const { toBuffer } = require("qrcode");
-const { makeWASocket, useMultiFileAuthState, delay, makeCacheableSignalKeyStore, Browsers, jidNormalizedUser } = require("baileys");
+const {
+    default: makeWASocket,
+    useMultiFileAuthState,
+    delay,
+    makeCacheableSignalKeyStore,
+    Browsers,
+    jidNormalizedUser
+} = require("baileys");
 const { upload } = require('./mega');
 
 let router = express.Router();
@@ -12,9 +19,8 @@ if (fs.existsSync('./session')) {
     fs.emptyDirSync('./session');
 }
 
+
 router.get('/', async (req, res) => {
-    const sessionId = res.locals.sessionId || generateSessionId();
-    
     async function EmpireQr() {
         const { state, saveCreds } = await useMultiFileAuthState(`./session`);
         try {
@@ -35,21 +41,10 @@ router.get('/', async (req, res) => {
                 if (qr) {
                     console.log("QR Code received!");
                     if (!res.headersSent) {
+                        res.setHeader('Content-Type', 'image/png');
                         try {
                             const qrBuffer = await toBuffer(qr);
-                            res.setHeader('Content-Type', 'image/png');
                             res.end(qrBuffer);
-                            
-                            // Update session with QR generated
-                            await ConnectionSession.findOneAndUpdate(
-                                { sessionId },
-                                { 
-                                    $set: { 
-                                        'connectionData.status': 'qr_generated',
-                                        updatedAt: new Date()
-                                    } 
-                                }
-                            );
                             return;
                         } catch (error) {
                             console.error("Error generating QR Code buffer:", error);
@@ -60,31 +55,19 @@ router.get('/', async (req, res) => {
 
                 if (connection === "open") {
                     console.log("Connection opened successfully!");
-                    
-                    // Update session with connection success
-                    await ConnectionSession.findOneAndUpdate(
-                        { sessionId },
-                        { 
-                            $set: { 
-                                'connectionData.status': 'connected',
-                                'connectionData.connectedAt': new Date(),
-                                updatedAt: new Date()
-                            } 
-                        }
-                    );
 
                     try {
                         await delay(10000); 
                         const authPath = './session/';
                         const user_jid = jidNormalizedUser(EmpireQrWeb.user.id);
 
-                        function randomMegaId() {
+                        function randomMegaId(length = 6, numberLength = 4) {
                             const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
                             let result = '';
-                            for (let i = 0; i < 6; i++) {
+                            for (let i = 0; i < length; i++) {
                                 result += characters.charAt(Math.floor(Math.random() * characters.length));
                             }
-                            const number = Math.floor(Math.random() * 10000);
+                            const number = Math.floor(Math.random() * Math.pow(10, numberLength));
                             return `${result}${number}`;
                         }
 
@@ -106,36 +89,14 @@ router.get('/', async (req, res) => {
                     fs.emptyDirSync('./session');
                     process.exit(0);
                 } else if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
-                    // Update session with disconnection
-                    await ConnectionSession.findOneAndUpdate(
-                        { sessionId },
-                        { 
-                            $set: { 
-                                'connectionData.status': 'disconnected',
-                                'connectionData.disconnectedAt': new Date(),
-                                updatedAt: new Date()
-                            } 
-                        }
-                    );
-                    
                     await delay(10000);
                     EmpireQr();
                 }
             });
         } catch (err) {
-            // Update session with error
-            await ConnectionSession.findOneAndUpdate(
-                { sessionId },
-                { 
-                    $set: { 
-                        'connectionData.status': 'error',
-                        updatedAt: new Date()
-                    } 
-                }
-            );
-            
             exec('pm2 restart empire-md-session');
             console.log("Service restarted");
+            EmpirePair();
             fs.emptyDirSync('./session');
             if (!res.headersSent) {
                 res.status(503).send({ error: "Service Unavailable" });
@@ -144,10 +105,6 @@ router.get('/', async (req, res) => {
     }
     EmpireQr();
 });
-
-function generateSessionId() {
-    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-}
 
 process.on('uncaughtException', function (err) {
     console.log('Caught exception: ' + err);
