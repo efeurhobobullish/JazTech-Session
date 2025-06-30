@@ -41,9 +41,25 @@ const getIP = (req) => {
 
 // Routes
 
-// Serve Static HTML
+// Serve static HTML pagesMore actions
 app.get('/qr-page', (req, res) => {
   res.sendFile(path.join(__dirname, 'qr.html'));
+});
+
+app.get('/pair', (req, res) => {
+  res.sendFile(path.join(__dirname, 'pair.html'));
+});
+
+app.get('/donate', (req, res) => {
+  res.sendFile(path.join(__dirname, 'donate.html'));
+});
+
+app.get('/thank-you', (req, res) => {
+  res.sendFile(path.join(__dirname, 'thank-you.html'));
+});
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'main.html'));
 });
 
 // Click Logging Pages
