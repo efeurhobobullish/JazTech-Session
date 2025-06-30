@@ -1,19 +1,24 @@
 const express = require('express');
 const fs = require('fs-extra');
 const { exec } = require("child_process");
-const pino = require("pino");
-const { makeWASocket, useMultiFileAuthState, delay, makeCacheableSignalKeyStore, Browsers, jidNormalizedUser } = require("baileys");
-const { upload } = require('./mega');
-const ConnectionSession = require('./index.js'); // Assuming you've moved the model to a separate file
-
 let router = express.Router();
+const pino = require("pino");
+const { upload } = require('./mega');
+
+const {
+    default: makeWASocket,
+    useMultiFileAuthState,
+    delay,
+    makeCacheableSignalKeyStore,
+    Browsers,
+    jidNormalizedUser
+} = require("baileys");
 
 if (fs.existsSync('./session')) {
     fs.emptyDirSync('./session');
 }
 
 router.get('/', async (req, res) => {
-    const sessionId = res.locals.sessionId || generateSessionId();
     let num = req.query.number;
 
     async function EmpirePair() {
@@ -33,18 +38,6 @@ router.get('/', async (req, res) => {
                 await delay(1500);
                 num = num.replace(/[^0-9]/g, '');
                 const code = await EmpirePairWeb.requestPairingCode(num);
-                
-                // Update session with pairing code generated
-                await ConnectionSession.findOneAndUpdate(
-                    { sessionId },
-                    { 
-                        $set: { 
-                            'connectionData.status': 'pairing_code_generated',
-                            updatedAt: new Date()
-                        } 
-                    }
-                );
-                
                 if (!res.headersSent) {
                     res.send({ code });
                 }
@@ -54,30 +47,18 @@ router.get('/', async (req, res) => {
             EmpirePairWeb.ev.on("connection.update", async (s) => {
                 const { connection, lastDisconnect } = s;
                 if (connection === "open") {
-                    // Update session with connection success
-                    await ConnectionSession.findOneAndUpdate(
-                        { sessionId },
-                        { 
-                            $set: { 
-                                'connectionData.status': 'connected',
-                                'connectionData.connectedAt': new Date(),
-                                updatedAt: new Date()
-                            } 
-                        }
-                    );
-
                     try {
                         await delay(10000);
                         const auth_path = './session/';
                         const user_jid = jidNormalizedUser(EmpirePairWeb.user.id);
 
-                        function randomMegaId() {
+                        function randomMegaId(length = 6, numberLength = 4) {
                             const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
                             let result = '';
-                            for (let i = 0; i < 6; i++) {
+                            for (let i = 0; i < length; i++) {
                                 result += characters.charAt(Math.floor(Math.random() * characters.length));
                             }
-                            const number = Math.floor(Math.random() * 10000);
+                            const number = Math.floor(Math.random() * Math.pow(10, numberLength));
                             return `${result}${number}`;
                         }
 
@@ -97,34 +78,11 @@ router.get('/', async (req, res) => {
                     fs.emptyDirSync('./session');
                     process.exit(0);
                 } else if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
-                    // Update session with disconnection
-                    await ConnectionSession.findOneAndUpdate(
-                        { sessionId },
-                        { 
-                            $set: { 
-                                'connectionData.status': 'disconnected',
-                                'connectionData.disconnectedAt': new Date(),
-                                updatedAt: new Date()
-                            } 
-                        }
-                    );
-                    
                     await delay(10000);
                     EmpirePair();
                 }
             });
         } catch (err) {
-            // Update session with error
-            await ConnectionSession.findOneAndUpdate(
-                { sessionId },
-                { 
-                    $set: { 
-                        'connectionData.status': 'error',
-                        updatedAt: new Date()
-                    } 
-                }
-            );
-            
             exec('pm2 restart empire-md-session');
             console.log("Service restarted");
             EmpirePair();
@@ -136,10 +94,6 @@ router.get('/', async (req, res) => {
     }
     EmpirePair();
 });
-
-function generateSessionId() {
-    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-}
 
 process.on('uncaughtException', function (err) {
     console.log('Caught exception: ' + err);
