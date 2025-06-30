@@ -149,6 +149,17 @@ app.get('/api/analytics', async (req, res) => {
   }
 });
 
+// Uptime endpoint
+app.get('/api/uptime', (req, res) => {
+  try {
+    const uptime = Math.floor(process.uptime());
+    res.json({ uptime });
+  } catch (err) {
+    console.error('Error getting uptime:', err);
+    res.status(500).json({ error: 'Failed to get uptime' });
+  }
+});
+
 // Get Local IP Address
 app.get('/api/local-ip', (req, res) => {
   const interfaces = os.networkInterfaces();
