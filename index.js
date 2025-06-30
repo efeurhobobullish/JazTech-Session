@@ -1,208 +1,113 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const cron = require('node-cron');
 const bodyParser = require("body-parser");
-const WebSocket = require('ws');
-const PORT = process.env.PORT || 8000;
-const path = require('path');
-
-// Initialize Express
 const app = express();
+const PORT = process.env.PORT || 8000;
 
-// Database connection
+// Define the base directory
+__path = process.cwd();
+
+// Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://empiretechapp:bullishbb3@empiretechapi.19vipus.mongodb.net/?retryWrites=true&w=majority&appName=empiretechapi', {
   useNewUrlParser: true,
   useUnifiedTopology: true
+})
+.then(() => console.log('✅ Connected to MongoDB'))
+.catch((err) => console.error('❌ MongoDB connection error:', err));
+
+// Define the Click schema and model
+const clickSchema = new mongoose.Schema({
+    ip: String,
+    route: String,
+    value: Number,
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
 });
 
-// Models
-const ConnectionSession = mongoose.model('ConnectionSession', {
-  sessionId: String,
-  type: String, // 'qr' or 'pair'
-  connectionData: {
-    status: String,
-    connectedAt: Date,
-    disconnectedAt: Date
-  },
-  scans: [{
-    type: String, // 'qr' or 'pair'
-    ipAddress: String,
-    userAgent: String,
-    timestamp: { type: Date, default: Date.now }
-  }],
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
+const Click = mongoose.model('Click', clickSchema);
 
+// Utility to get client IP address
+const getIP = (req) => {
+    return req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+};
 
-module.exports = ConnectionSession;
 // Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Import your existing modules
-const qrRouter = require('./qr');
-const pairRouter = require('./pair');
-
-// Track QR scans and pairing attempts
-app.use((req, res, next) => {
-  if (req.path === '/qr' || req.path === '/pair') {
-    const sessionId = req.query.session || generateSessionId();
-    const scanType = req.path === '/qr' ? 'qr' : 'pair';
-    
-    // Record the scan/pair attempt
-    recordConnectionAttempt(sessionId, scanType, req.ip, req.headers['user-agent'])
-      .catch(err => console.error('Error recording connection attempt:', err));
-    
-    // Add session ID to response locals for QR/pair routers to access
-    res.locals.sessionId = sessionId;
-  }
-  next();
-});
-
 // Serve static HTML pages
 app.get('/qr-page', (req, res) => {
-  res.sendFile(path.join(__dirname, 'qr.html'));
+    res.sendFile(__path + '/qr.html');
 });
 
-app.get('/pair', (req, res) => {
-  res.sendFile(path.join(__dirname, 'pair.html'));
+app.get('/pair', async (req, res) => {
+    try {
+        await Click.create({
+            ip: getIP(req),
+            route: '/pair',
+            value: 1,
+        });
+    } catch (err) {
+        console.error('❌ Error saving /pair click:', err);
+    }
+    res.sendFile(__path + '/pair.html');
+});
+
+app.get('/qr', async (req, res) => {
+    try {
+        await Click.create({
+            ip: getIP(req),
+            route: '/qr',
+            value: 1,
+        });
+    } catch (err) {
+        console.error('❌ Error saving /qr click:', err);
+    }
+    res.sendFile(__path + '/qr.html');
 });
 
 app.get('/donate', (req, res) => {
-  res.sendFile(path.join(__dirname, 'donate.html'));
+    res.sendFile(__path + '/donate.html');
 });
 
 app.get('/thank-you', (req, res) => {
-  res.sendFile(path.join(__dirname, 'thank-you.html'));
+    res.sendFile(__path + '/thank-you.html');
 });
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'main.html'));
+    res.sendFile(__path + '/main.html');
 });
 
-// Serve the QR and Pair endpoints with tracking
-app.use('/qr', qrRouter);
-app.use('/pair', pairRouter);
+// 📊 Click summary endpoint
+app.get('/clicks', async (req, res) => {
+    try {
+        const total = await Click.countDocuments();
+        const pair = await Click.countDocuments({ route: '/pair' });
+        const qr = await Click.countDocuments({ route: '/qr' });
 
-// API Endpoints for dashboard
-app.get('/api/sessions/:sessionId', async (req, res) => {
-  try {
-    const session = await ConnectionSession.findOne({ sessionId: req.params.sessionId });
-    if (!session) return res.status(404).json({ error: 'Session not found' });
-    res.json(session);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/sessions/:sessionId/stats', async (req, res) => {
-  try {
-    const session = await ConnectionSession.findOne({ sessionId: req.params.sessionId });
-    if (!session) return res.status(404).json({ error: 'Session not found' });
-    
-    const stats = {
-      totalScans: session.scans.length,
-      qrScans: session.scans.filter(s => s.type === 'qr').length,
-      pairAttempts: session.scans.filter(s => s.type === 'pair').length,
-      connectionStatus: session.connectionData.status || 'disconnected',
-      lastActivity: session.updatedAt
-    };
-    
-    res.json(stats);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Cron job to clean up old sessions and update statuses
-cron.schedule('*/5 * * * *', async () => {
-  try {
-    // Clean up sessions older than 48 hours
-    await ConnectionSession.deleteMany({
-      createdAt: { $lt: new Date(Date.now() - 48 * 60 * 60 * 1000) }
-    });
-    
-    // Update stale connections
-    await ConnectionSession.updateMany(
-      { 
-        'connectionData.status': 'connected',
-        'connectionData.updatedAt': { $lt: new Date(Date.now() - 30 * 60 * 1000) }
-      },
-      { 
-        $set: { 
-          'connectionData.status': 'disconnected',
-          'connectionData.disconnectedAt': new Date()
-        } 
-      }
-    );
-  } catch (err) {
-    console.error('Error in cron job:', err);
-  }
-});
-
-// WebSocket setup for real-time updates
-const wss = new WebSocket.Server({ noServer: true });
-const clients = new Map();
-
-function broadcastUpdate(sessionId) {
-  const sessionClients = clients.get(sessionId) || [];
-  sessionClients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ type: 'UPDATE' }));
+        res.json({
+            totalClicks: total,
+            pairClicks: pair,
+            qrClicks: qr,
+        });
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to fetch click stats' });
     }
-  });
-}
+});
 
-// Helper functions
-function generateSessionId() {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-}
+// Import external modules
+let server = require('./qr');
+let code = require('./pair');
+require('events').EventEmitter.defaultMaxListeners = 1000;
 
-async function recordConnectionAttempt(sessionId, type, ip, userAgent) {
-  await ConnectionSession.findOneAndUpdate(
-    { sessionId },
-    {
-      $setOnInsert: { 
-        sessionId,
-        type,
-        createdAt: new Date(),
-        'connectionData.status': 'pending'
-      },
-      $push: {
-        scans: {
-          type,
-          ipAddress: ip,
-          userAgent
-        }
-      },
-      $set: {
-        updatedAt: new Date()
-      }
-    },
-    { upsert: true, new: true }
-  );
-}
+app.use('/qr', server);
+app.use('/code', code);
 
 // Start server
-const server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
-
-// Attach WebSocket server
-server.on('upgrade', (request, socket, head) => {
-  wss.handleUpgrade(request, socket, head, ws => {
-    const sessionId = request.url.split('/').pop();
-    
-    if (!clients.has(sessionId)) {
-      clients.set(sessionId, []);
-    }
-    clients.get(sessionId).push(ws);
-    
-    ws.on('close', () => {
-      clients.set(sessionId, clients.get(sessionId).filter(client => client !== ws));
-    });
-  });
+app.listen(PORT, () => {
+    console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
 
 module.exports = app;
