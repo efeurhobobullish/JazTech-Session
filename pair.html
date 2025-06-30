@@ -116,7 +116,6 @@
             class="text-primary-600 font-bold text-xl cursor-pointer hover:text-primary-700 transition-colors"
             onclick="Copy()"
           ></div>
-          <div id="sid-display" class="text-xs text-gray-500 mt-2 break-all"></div>
           <p class="text-xs text-gray-500 mt-2">Click code to copy</p>
         </div>
       </div>
@@ -133,7 +132,6 @@
     let b = document.getElementById("submit");
     let c = document.getElementById("number");
     let box = document.getElementById("box");
-    let sidDisplay = document.getElementById("sid-display");
 
     async function Copy() {
       let text = document.getElementById("copy").innerText;
@@ -183,12 +181,11 @@
         try {
           let { data } = await axios(`/code?number=${bc}`);
           let code = data.code || "❗ Service Unavailable";
-          let sid = data.sid || "N/A";
-          
           document.getElementById("copy").innerText = `CODE: ${code}`;
-          sidDisplay.innerText = `SID: ${sid}`;
           a.classList.remove('hidden');
-          console.log("sid:", sid);
+          
+          // The SID will be handled by your pair.js backend after WhatsApp connection
+          // No SID display in the UI as requested
         } catch (error) {
           a.innerHTML = '<p class="text-red-500 font-medium">❗ Error connecting to server</p>';
           a.classList.remove('hidden');
