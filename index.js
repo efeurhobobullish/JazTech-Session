@@ -127,8 +127,16 @@ app.get('/api/analytics', async (req, res) => {
         $group: {
           _id: "$date",
           time: { $first: "$date" },
-          qrPageCount: { $sum: { $cond: [{ $eq: ["$route", "/qr-page"] }, 1, 0] } },
-          pairCount: { $sum: { $cond: [{ $eq: ["$route", "/pair"] }, 1, 0] } },
+          qrPageCount: {
+            $sum: {
+              $cond: [{ $eq: ["$route", "/qr-page"] }, 1, 0]
+            }
+          },
+          pairCount: {
+            $sum: {
+              $cond: [{ $eq: ["$route", "/pair"] }, 1, 0]
+            }
+          },
         }
       },
       { $sort: { time: 1 } }
