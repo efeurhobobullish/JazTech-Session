@@ -39,30 +39,7 @@ const getIP = (req) => {
   return forwarded ? forwarded.split(',')[0] : req.socket.remoteAddress;
 };
 
-// Routes
-
-// Serve static HTML pagesMore actions
-app.get('/qr-page', (req, res) => {
-  res.sendFile(path.join(__dirname, 'qr.html'));
-});
-
-app.get('/pair', (req, res) => {
-  res.sendFile(path.join(__dirname, 'pair.html'));
-});
-
-app.get('/donate', (req, res) => {
-  res.sendFile(path.join(__dirname, 'donate.html'));
-});
-
-app.get('/thank-you', (req, res) => {
-  res.sendFile(path.join(__dirname, 'thank-you.html'));
-});
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'main.html'));
-});
-
-// Click Logging Pages
+// === Click Logging Pages ===
 const logClickAndServe = (routePath, fileName) => {
   app.get(routePath, async (req, res) => {
     try {
@@ -76,28 +53,41 @@ const logClickAndServe = (routePath, fileName) => {
   });
 };
 
-logClickAndServe('/pair', 'pair.html');
-logClickAndServe('/qr', 'qr.html');
+logClickAndServe('/pair', 'pair.html');          // logs click
+logClickAndServe('/qr-page', 'qr.html');         // logs click
+
+// Static (no logging)
+app.get('/donate', (req, res) => {
+  res.sendFile(path.join(__dirname, 'donate.html'));
+});
+
+app.get('/thank-you', (req, res) => {
+  res.sendFile(path.join(__dirname, 'thank-you.html'));
+});
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'main.html'));
+});
 
 // Click Summary (last 24h)
 app.get('/clicks', async (req, res) => {
   try {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const [total, pair, qr, lastPair, lastQr] = await Promise.all([
+    const [total, pair, qrPage, lastPair, lastQrPage] = await Promise.all([
       Click.countDocuments({ createdAt: { $gte: since } }),
       Click.countDocuments({ route: '/pair', createdAt: { $gte: since } }),
-      Click.countDocuments({ route: '/qr', createdAt: { $gte: since } }),
+      Click.countDocuments({ route: '/qr-page', createdAt: { $gte: since } }),
       Click.findOne({ route: '/pair' }).sort({ createdAt: -1 }),
-      Click.findOne({ route: '/qr' }).sort({ createdAt: -1 }),
+      Click.findOne({ route: '/qr-page' }).sort({ createdAt: -1 }),
     ]);
 
     res.json({
       totalClicks: total,
       pairClicks: pair,
-      qrClicks: qr,
+      qrPageClicks: qrPage,
       lastPairTime: lastPair?.createdAt || null,
-      lastQrTime: lastQr?.createdAt || null,
+      lastQrPageTime: lastQrPage?.createdAt || null,
     });
   } catch (err) {
     console.error('❌ Error fetching click stats:', err);
@@ -137,7 +127,7 @@ app.get('/api/analytics', async (req, res) => {
         $group: {
           _id: "$date",
           time: { $first: "$date" },
-          qrCount: { $sum: { $cond: [{ $eq: ["$route", "/qr"] }, 1, 0] } },
+          qrPageCount: { $sum: { $cond: [{ $eq: ["$route", "/qr-page"] }, 1, 0] } },
           pairCount: { $sum: { $cond: [{ $eq: ["$route", "/pair"] }, 1, 0] } },
         }
       },
@@ -168,7 +158,7 @@ app.get('/api/local-ip', (req, res) => {
 const qrRouter = require('./qr');
 const pairRouter = require('./pair');
 
-app.use('/qr', qrRouter);
+app.use('/qr', qrRouter);      // used for QR display logic (no logging)
 app.use('/code', pairRouter);
 
 // Start Server
