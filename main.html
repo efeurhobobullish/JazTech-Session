@@ -378,24 +378,26 @@
 
       // Fetch and display click counts
       async function fetchClickCounts() {
-        try {
-          const response = await fetch('/clicks');
-          const data = await response.json();
-          
-          document.getElementById('qr-click-count').textContent = data.qrClicks || 0;
-          document.getElementById('pair-click-count').textContent = data.pairClicks || 0;
-          
-          // Update last scan/attempt times if available
-          if (data.lastQrTime) {
-            document.getElementById('last-qr-scan').textContent = new Date(data.lastQrTime).toLocaleString();
-          }
-          if (data.lastPairTime) {
-            document.getElementById('last-pair-attempt').textContent = new Date(data.lastPairTime).toLocaleString();
-          }
-        } catch (error) {
-          console.error('Error fetching click counts:', error);
-        }
-      }
+  try {
+    const response = await fetch('/clicks');
+    const data = await response.json();
+    
+    // Corrected field names
+    document.getElementById('qr-click-count').textContent = data.qrPageClicks || 0;
+    document.getElementById('pair-click-count').textContent = data.pairClicks || 0;
+
+    if (data.lastQrPageTime) {
+      document.getElementById('last-qr-scan').textContent = new Date(data.lastQrPageTime).toLocaleString();
+    }
+
+    if (data.lastPairTime) {
+      document.getElementById('last-pair-attempt').textContent = new Date(data.lastPairTime).toLocaleString();
+    }
+
+  } catch (error) {
+    console.error('Error fetching click counts:', error);
+  }
+}
 
       // Fetch server IP
       async function fetchServerIP() {
