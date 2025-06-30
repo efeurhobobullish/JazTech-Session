@@ -34,6 +34,8 @@ const ConnectionSession = mongoose.model('ConnectionSession', {
   updatedAt: { type: Date, default: Date.now }
 });
 
+
+module.exports = ConnectionSession;
 // Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
