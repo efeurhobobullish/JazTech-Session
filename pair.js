@@ -4,7 +4,7 @@ const { exec } = require("child_process");
 const pino = require("pino");
 const { makeWASocket, useMultiFileAuthState, delay, makeCacheableSignalKeyStore, Browsers, jidNormalizedUser } = require("baileys");
 const { upload } = require('./mega');
-const ConnectionSession = require('./models/ConnectionSession'); // Assuming you've moved the model to a separate file
+const ConnectionSession = require('./index.js'); // Assuming you've moved the model to a separate file
 
 let router = express.Router();
 
