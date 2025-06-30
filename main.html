@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JazeTech Session Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     .sidebar {
@@ -69,7 +70,7 @@
       <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Connection Methods</p>
       <ul class="space-y-2">
         <li>
-          <a href="/qr-page" class="flex items-center space-x-3 p-2 rounded-lg text-gray-700 hover:bg-gray-100">
+          <a href="/qr" class="flex items-center space-x-3 p-2 rounded-lg text-gray-700 hover:bg-gray-100">
             <i class="fas fa-qrcode w-5"></i>
             <span>QR Code</span>
           </a>
@@ -232,11 +233,8 @@
             <button id="time-30d" class="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300">30d</button>
           </div>
         </div>
-        <div class="h-64 flex items-center justify-center" id="analytics-chart">
-          <div class="text-center">
-            <i class="fas fa-chart-bar text-4xl text-gray-300 mb-2"></i>
-            <p class="text-gray-500">Connection data will appear here</p>
-          </div>
+        <div class="h-64">
+          <canvas id="analytics-chart"></canvas>
         </div>
       </div>
 
@@ -266,99 +264,176 @@
   </div>
 
   <script>
-  /document.addEventListener("DOMContentLoaded", function () {
-  const activityList = document.getElementById("activity-list");
-  const clearAllBtn = document.getElementById("clear-all");
-  const showToast = document.getElementById("toast");
-  let activityData = [];
-  let totalClickCount = 0;
-  let qrClickCount = 0;
-  let pairClickCount = 0;
+    // Chart variables
+    let analyticsChart;
+    let currentTimeRange = '24h';
 
-  function showTemporaryToast(message) {
-    showToast.textContent = message;
-    showToast.classList.remove("hidden");
-    setTimeout(() => {
-      showToast.classList.add("hidden");
-    }, 3000);
-  }
-
-  function updateClickCounts() {
-    document.getElementById("total-click-count").textContent = totalClickCount;
-    document.getElementById("qr-click-count").textContent = qrClickCount;
-    document.getElementById("pair-click-count").textContent = pairClickCount;
-  }
-
-  function addActivityItem(activity) {
-    const li = document.createElement("li");
-    li.className = "bg-white shadow rounded-lg p-4 mb-2 flex justify-between items-center";
-
-    const leftDiv = document.createElement("div");
-    leftDiv.innerHTML = `
-      <p class="text-sm font-medium">${activity.phone}</p>
-      <p class="text-xs text-gray-500">${activity.type === "qr" ? "Scanned QR" : "Tried to pair"}</p>
-    `;
-
-    const rightDiv = document.createElement("div");
-    rightDiv.innerHTML = `
-      <p class="text-xs text-gray-400">${new Date(activity.time).toLocaleTimeString()}</p>
-    `;
-
-    li.appendChild(leftDiv);
-    li.appendChild(rightDiv);
-    activityList.prepend(li); // Add to top
-
-    // Update click counters
-    totalClickCount++;
-    if (activity.type === "qr") {
-      qrClickCount++;
-    } else if (activity.type === "pair") {
-      pairClickCount++;
-    }
-
-    updateClickCounts();
-  }
-
-  function fetchActivity() {
-    fetch("/api/activity")
-      .then((res) => res.json())
-      .then((data) => {
-        activityData = data;
-        totalClickCount = 0;
-        qrClickCount = 0;
-        pairClickCount = 0;
-        activityList.innerHTML = "";
-        data.forEach(addActivityItem);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch activity data:", err);
-        showTemporaryToast("Failed to load activity");
+    document.addEventListener("DOMContentLoaded", function () {
+      // Hamburger menu toggle
+      const menuToggle = document.getElementById('menu-toggle');
+      const sidebarOverlay = document.querySelector('.sidebar-overlay');
+      
+      menuToggle.addEventListener('click', function() {
+        document.body.classList.toggle('sidebar-open');
       });
-  }
+      
+      sidebarOverlay.addEventListener('click', function() {
+        document.body.classList.remove('sidebar-open');
+      });
 
-  clearAllBtn.addEventListener("click", function () {
-    fetch("/api/activity/clear", { method: "DELETE" })
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.success) {
-          activityData = [];
-          totalClickCount = 0;
-          qrClickCount = 0;
-          pairClickCount = 0;
-          activityList.innerHTML = "";
-          updateClickCounts();
-          showTemporaryToast("Activity cleared");
-        } else {
-          showTemporaryToast("Failed to clear activity");
+      // Update current time
+      function updateTime() {
+        const now = new Date();
+        document.getElementById('current-time').textContent = now.toLocaleTimeString();
+      }
+      setInterval(updateTime, 1000);
+      updateTime();
+
+      // Initialize analytics chart
+      function initAnalyticsChart(labels, qrData, pairData) {
+        const ctx = document.getElementById('analytics-chart').getContext('2d');
+        
+        if (analyticsChart) {
+          analyticsChart.destroy();
         }
-      })
-      .catch((err) => {
-        console.error("Clear error:", err);
-        showTemporaryToast("Error clearing activity");
-      });
-  });
+        
+        analyticsChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'QR Scans',
+                data: qrData,
+                borderColor: '#3B82F6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.3,
+                fill: true
+              },
+              {
+                label: 'Pair Attempts',
+                data: pairData,
+                borderColor: '#10B981',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                tension: 0.3,
+                fill: true
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'top',
+              },
+              tooltip: {
+                mode: 'index',
+                intersect: false,
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  precision: 0
+                }
+              }
+            }
+          }
+        });
+      }
 
-  fetchActivity();
-});
+      // Fetch analytics data
+      async function fetchAnalyticsData(range = '24h') {
+        try {
+          const response = await fetch(`/api/analytics?range=${range}`);
+          const data = await response.json();
+          
+          // Process data for chart
+          const labels = data.map(item => {
+            if (range === '24h') return new Date(item.time).toLocaleTimeString();
+            return new Date(item.time).toLocaleDateString();
+          });
+          
+          const qrData = data.map(item => item.qrCount);
+          const pairData = data.map(item => item.pairCount);
+          
+          initAnalyticsChart(labels, qrData, pairData);
+          currentTimeRange = range;
+          
+          // Update button states
+          document.querySelectorAll('#time-24h, #time-7d, #time-30d').forEach(btn => {
+            btn.classList.remove('bg-blue-600', 'text-white');
+            btn.classList.add('bg-gray-200', 'text-gray-700');
+          });
+          
+          document.getElementById(`time-${range}`).classList.add('bg-blue-600', 'text-white');
+          document.getElementById(`time-${range}`).classList.remove('bg-gray-200', 'text-gray-700');
+          
+        } catch (error) {
+          console.error('Error fetching analytics data:', error);
+        }
+      }
+
+      // Fetch and display click counts
+      async function fetchClickCounts() {
+        try {
+          const response = await fetch('/clicks');
+          const data = await response.json();
+          
+          document.getElementById('qr-click-count').textContent = data.qrClicks || 0;
+          document.getElementById('pair-click-count').textContent = data.pairClicks || 0;
+          
+          // Update last scan/attempt times if available
+          if (data.lastQrTime) {
+            document.getElementById('last-qr-scan').textContent = new Date(data.lastQrTime).toLocaleString();
+          }
+          if (data.lastPairTime) {
+            document.getElementById('last-pair-attempt').textContent = new Date(data.lastPairTime).toLocaleString();
+          }
+        } catch (error) {
+          console.error('Error fetching click counts:', error);
+        }
+      }
+
+      // Fetch server IP
+      async function fetchServerIP() {
+        try {
+          // First try to get the public IP
+          const ipResponse = await fetch('https://api.ipify.org?format=json');
+          const ipData = await ipResponse.json();
+          document.getElementById('ip-address').textContent = ipData.ip;
+          
+          // Fallback to local IP if public IP fails
+        } catch (error) {
+          console.error('Error fetching public IP:', error);
+          try {
+            // Get local IP
+            const localResponse = await fetch('/api/local-ip');
+            const localData = await localResponse.json();
+            document.getElementById('ip-address').textContent = localData.ip || '127.0.0.1';
+          } catch (err) {
+            console.error('Error fetching local IP:', err);
+            document.getElementById('ip-address').textContent = '127.0.0.1';
+          }
+        }
+      }
+
+      // Time range button handlers
+      document.getElementById('time-24h').addEventListener('click', () => fetchAnalyticsData('24h'));
+      document.getElementById('time-7d').addEventListener('click', () => fetchAnalyticsData('7d'));
+      document.getElementById('time-30d').addEventListener('click', () => fetchAnalyticsData('30d'));
+
+      // Initial data load
+      fetchAnalyticsData();
+      fetchClickCounts();
+      fetchServerIP();
+      
+      // Refresh data every 30 seconds
+      setInterval(fetchClickCounts, 30000);
+      setInterval(fetchAnalyticsData, 30000, currentTimeRange);
+    });
+  </script>
 </body>
 </html>
