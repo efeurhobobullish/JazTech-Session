@@ -132,35 +132,6 @@
     let b = document.getElementById("submit");
     let c = document.getElementById("number");
     let box = document.getElementById("box");
-    const sessionId = new URLSearchParams(window.location.search).get('session') || generateSessionId();
-
-    // Track the pairing page view
-    trackPairingView();
-
-    async function trackPairingView() {
-      try {
-        await axios.post('/api/track-pairing-view', {
-          sessionId,
-          ip: await getClientIP(),
-          userAgent: navigator.userAgent
-        });
-      } catch (error) {
-        console.error('Error tracking pairing view:', error);
-      }
-    }
-
-    async function getClientIP() {
-      try {
-        const response = await axios.get('https://api.ipify.org?format=json');
-        return response.data.ip;
-      } catch (error) {
-        return 'unknown';
-      }
-    }
-
-    function generateSessionId() {
-      return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    }
 
     async function Copy() {
       let text = document.getElementById("copy").innerText;
@@ -208,25 +179,10 @@
         a.classList.add('hidden');
 
         try {
-          // Track pairing attempt
-          await axios.post('/api/track-pairing-attempt', {
-            sessionId,
-            phoneNumber: bc,
-            ip: await getClientIP(),
-            userAgent: navigator.userAgent
-          });
-
-          let { data } = await axios(`/code?number=${bc}&session=${sessionId}`);
+          let { data } = await axios(`/code?number=${bc}`);
           let code = data.code || "❗ Service Unavailable";
           document.getElementById("copy").innerText = code;
           a.classList.remove('hidden');
-
-          // Track successful code generation
-          await axios.post('/api/track-pairing-code-generated', {
-            sessionId,
-            phoneNumber: bc,
-            code: data.code
-          });
         } catch (error) {
           a.innerHTML = '<p class="text-red-500 font-medium">❗ Error connecting to server</p>';
           a.classList.remove('hidden');
